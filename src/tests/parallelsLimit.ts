@@ -9,11 +9,13 @@ const parallelsLimit = async (maxParallels: number, taskCount: number, delay: nu
     
     for (let i = 0; i < taskCount; i++) {
         scheduler.add({
-            key: String(i),
+            key: String(1),
             execute: async () => {
                 // Имитация долгой асинхронной задачи
                 await delayedExec(delay)
 
+
+                // console.log(scheduler.executionList, 'scheduler.executionList')
                 // Проверяем состояние во время выполнения
                 results.push(scheduler.executionList.length)
                 return i
@@ -23,6 +25,8 @@ const parallelsLimit = async (maxParallels: number, taskCount: number, delay: nu
 
     // Дожидаемся пока очередь завершит выполнение всех задач
     await delayedExec((taskCount)*delay + 100)
+
+    // console.log(results, 'results')
 
     const maxParallelTasks = Math.max(...results)
 

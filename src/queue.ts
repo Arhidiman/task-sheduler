@@ -18,7 +18,9 @@ interface ITaskSheduler {
 
 export class TaskSheduler extends EventEmitter<Events> implements ITaskSheduler {
 
+    // очередь задач (FIFO)
     queue: Task[] = []
+    // текущие исполняемые задачи
     executionList: Task[] = []
 
     private maxParallels: number = 1
@@ -41,14 +43,15 @@ export class TaskSheduler extends EventEmitter<Events> implements ITaskSheduler 
     }
 
     add(task: Task): void {
-        // Добавляем задачу в очередь
-        this.queue.push(task)
+        // Добавляем задачу в очередь & дедупикация
+        if (!this.isDublicate(task.key)) this.queue.push(task)
 
         // Тут же убираем задачу из очереди по FIFO
         // и добавляем в список исполняемых задач, исполняем её
-        if (this.executionList.length < this.maxParallels) {
-            this.remove()
+        if (this.executionList.length < this.maxParallels) { // лимит параллельности
             this.addToExecutionList(task) 
+            this.remove()
+
             this.emit('run', task.key)
         }
     }
@@ -75,6 +78,12 @@ export class TaskSheduler extends EventEmitter<Events> implements ITaskSheduler 
 
     private removeFromExecutionList(taskKey: string): void {
         this.executionList = this.executionList.filter(task => task.key !== taskKey)
+    }
+
+    private isDublicate(key: string) {
+        const hasDublicate = (tasks: Task[]) => tasks.some((task: Task) => task.key === key)
+        return hasDublicate(this.queue)
+            || hasDublicate(this.executionList)
     }
 }
 
