@@ -7,6 +7,7 @@ export type Result = {
     taskKey: TaskKey
     message: string,
     error?: string
+    retries: number
 }
 
 export type Events = {
@@ -14,7 +15,7 @@ export type Events = {
     register: Task[]
 }
 
-export type Mode = 'prod' | 'test'
+export type Mode = 'prod' | 'test' | undefined
 
 export type Task = {
     key: TaskKey,

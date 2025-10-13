@@ -5,7 +5,7 @@ import type { Test, TestFunc } from ".."
 import type { Task } from "../../types"
 
 const deduplication = async (taskCount: number, delayPerTask: number): Promise<Test> => {
-    const scheduler = new TaskSheduler(3)
+    const scheduler = new TaskSheduler(taskCount, 3)
 
     const executed: string[] = []
     const sharedTaskKey = "duplicate-task"

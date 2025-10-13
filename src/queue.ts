@@ -6,7 +6,8 @@ import type { Task, Result, TaskKey, ExecutorId, Mode } from './types'
 
 type Events = {
     run: TaskKey[],
-    executed: Result[]
+    executed: Result[],
+    error: TaskKey[]
 }
 
 export interface ITaskSheduler<M extends Mode> {
@@ -14,6 +15,8 @@ export interface ITaskSheduler<M extends Mode> {
     queue: Task[],
     executionList: Task[]
     mode?: M
+    maxRetries: number,
+    baseRetryDelay: number
 }
 
 export class TaskSheduler extends EventEmitter<Events> implements ITaskSheduler<Mode> {
@@ -26,15 +29,22 @@ export class TaskSheduler extends EventEmitter<Events> implements ITaskSheduler<
     // Режим: для тестирования
     mode?: Mode
 
+    // повторные попытки выполнения задачи
+    maxRetries: number = 3
+
+    baseRetryDelay: number = 100
+
     private executorsRegistrator: ExecutorsRegistrator
 
     private maxParallels: number = 1
 
-    constructor(maxParallels: number, mode?: Mode) {
+    constructor(maxParallels: number, retries?: number, mode?: Mode) {
         super()
         this.maxParallels = maxParallels
         this.mode = mode
         this.executorsRegistrator = new ExecutorsRegistrator(this.mode)
+
+        if (retries) this.maxRetries = retries
 
         this.on('run', (taskKey) => { this.execute(taskKey) })
         this.on('executed', (result: Result) => { 
@@ -53,7 +63,6 @@ export class TaskSheduler extends EventEmitter<Events> implements ITaskSheduler<
     }
 
     add(task: Task): void {
-
         // Регистрация задачи и подписка исполнителя на задачу
         this.executorsRegistrator.emit('register', task)
 
@@ -81,7 +90,7 @@ export class TaskSheduler extends EventEmitter<Events> implements ITaskSheduler<
             ?.execute
 
         const result = await this.getResult(executedFunction, taskKey)
-
+            
         // убираем выполненную задачу из списка выполняемых
         this.removeFromExecutionList(taskKey)
         this.emit('executed', result)
@@ -107,29 +116,46 @@ export class TaskSheduler extends EventEmitter<Events> implements ITaskSheduler<
     ): Promise<Result> {
 
         const executionErrMessage = 'Task execution error'
+        let result
 
         if (!execFunction) {
             return {
                 taskKey,
                 message: executionErrMessage,
-                error: `Task with key ${taskKey} does not exist`
+                error: `Task with key ${taskKey} does not exist`,
+                retries: 0
             }
         }
 
-        try {
-            const data = await execFunction?.()
-            return {
-                taskKey,
-                message: JSON.stringify(data)
-            }
+        for (let retries = 0; retries <= this.maxRetries; retries++) {
+            try {
+                const data = await execFunction?.()
+                
+                return {
+                    taskKey,
+                    message: JSON.stringify(data),
+                    retries
+                }
+    
+            } catch(err: any) {            
+                result = {
+                    taskKey,
+                    message: executionErrMessage,
+                    error: `Task with key ${taskKey} executed with error: ${err.message}`,
+                    retries
+                }
 
-        } catch(err: any) {
-            return {
-                taskKey,
-                message: 'Task execution error',
-                error: `Task with key ${taskKey} executed with error: ${err.message}`
+                // экспоненциальная задержка с разбросом
+                const exp = 2
+                const baseDelay = this.baseRetryDelay * Math.pow(exp, retries)
+                const jitter = Math.floor(Math.random() * baseDelay)
+                const delay = baseDelay + jitter
+                    
+                // ожидание перед следующим повтором
+                await new Promise(resolve => setTimeout(resolve, delay))
             }
-        }
+        }        
+        return result!
     }
 }
 

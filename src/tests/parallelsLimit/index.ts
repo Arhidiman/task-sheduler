@@ -1,6 +1,6 @@
 import { TaskSheduler } from "../../queue"
 import { delayedExec } from "../../lib"
-import { generateMockTasks } from "../mock"
+import { generateMockTasks } from "../../lib"
 
 import type { Test, TestFunc } from ".."
 
