@@ -8,7 +8,7 @@ const exponentialRetry = async (maxParallels: number, retries: number): Promise<
     const scheduler = new TaskSheduler(maxParallels, retries) 
 
     const started: number[] = []
-    const sharedTaskKey = "error-task"
+    const taskKey = "error-task"
 
     const execute = async () => {
         started.push(Math.round(performance.now()))
@@ -16,7 +16,7 @@ const exponentialRetry = async (maxParallels: number, retries: number): Promise<
     }
 
     const errorTask =   {
-        key: sharedTaskKey,
+        key: taskKey,
         executorID: randomUUID(),
         execute
     }
@@ -28,7 +28,7 @@ const exponentialRetry = async (maxParallels: number, retries: number): Promise<
     await delayedExec(maxDelay+1000)
     const ok = started.length - 1 <= scheduler.maxRetries
 
-    const message = `Задача "${sharedTaskKey}" запустилась повторно ${started.length - 1} раз, задержки между стартами задачи: ${started.join('ms, ')}ms.`
+    const message = `Задача "${taskKey}" запустилась повторно ${started.length - 1} раз, задержки между стартами задачи: ${started.join('ms, ')}ms.`
 
     if (ok) { 
         return {
@@ -42,4 +42,4 @@ const exponentialRetry = async (maxParallels: number, retries: number): Promise<
     }
 }
 
-export const test: TestFunc = () => exponentialRetry(3, 5)
+// export const test: TestFunc = () => exponentialRetry(3, 5)

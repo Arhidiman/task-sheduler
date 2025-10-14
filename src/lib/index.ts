@@ -11,10 +11,14 @@ export const generateMockTasks = (taskCount: number, delay: number, executeFunc:
     let tasks: Task[] = []
     for (let i = 0; i < taskCount; i++) {
 
+
+        const key = String(Math.round(Math.random()*taskCount)) 
         const task = {
-            key: String(Math.round(Math.random()*taskCount)),
+            key,
             execute: async () => {
                 await delayedExec(delay)
+
+                // console.log(key)
                 return await executeFunc()
             },
             executorID: randomUUID()

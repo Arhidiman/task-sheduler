@@ -1,6 +1,6 @@
 import { UUID } from 'node:crypto'
 import EventEmitter from 'node:events'
-import { ExecutorsRegistrator } from './TaskRegistrator'
+import { TasksBroker } from './TasksBroker/TasksBroker'
 import type { Task, Result, TaskKey, ExecutorId, Mode } from './types'
 
 
@@ -12,6 +12,7 @@ type Events = {
 
 export interface ITaskSheduler<M extends Mode> {
     add(task: Task): void,
+    shutdown(): void,
     queue: Task[],
     executionList: Task[]
     mode?: M
@@ -23,6 +24,7 @@ export class TaskSheduler extends EventEmitter<Events> implements ITaskSheduler<
 
     // очередь задач (FIFO)
     queue: Task[] = []
+
     // текущие исполняемые задачи
     executionList: Task[] = []
 
@@ -32,24 +34,27 @@ export class TaskSheduler extends EventEmitter<Events> implements ITaskSheduler<
     // повторные попытки выполнения задачи
     maxRetries: number = 3
 
+    // начальная задержка перед повтором
     baseRetryDelay: number = 100
 
-    private executorsRegistrator: ExecutorsRegistrator
+    private isShuttingDown: boolean = false
 
-    private maxParallels: number = 1
+    private tasksBroker: TasksBroker
+
+    private maxParallels: number = 3
 
     constructor(maxParallels: number, retries?: number, mode?: Mode) {
         super()
         this.maxParallels = maxParallels
         this.mode = mode
-        this.executorsRegistrator = new ExecutorsRegistrator(this.mode)
+        this.tasksBroker = new TasksBroker(this.mode)
 
         if (retries) this.maxRetries = retries
 
         this.on('run', (taskKey) => { this.execute(taskKey) })
         this.on('executed', (result: Result) => { 
 
-            this.executorsRegistrator.emit('result', result)
+            this.tasksBroker.emit('result', result)
 
             // если в очереди есть задачи, то берём одну, по принципу FIFO
             // и добавляем в список исполняемых задач
@@ -59,23 +64,37 @@ export class TaskSheduler extends EventEmitter<Events> implements ITaskSheduler<
                 this.addToExecutionList(nextTask)
                 this.emit('run', nextTask.key)
             }
+
+
+            if (this.isShuttingDown && this.executionList.length === 0) {
+                console.log('Task scheduler is shutdown !')
+                this.isShuttingDown = false
+            }
+
         })
+    }
+
+    shutdown(): void {
+        this.isShuttingDown = true
+        this.queue = [] // мягкое завершение: отмена ожидающих задач
     }
 
     add(task: Task): void {
         // Регистрация задачи и подписка исполнителя на задачу
-        this.executorsRegistrator.emit('register', task)
+        this.tasksBroker.emit('register', task)
 
-        // Дедупликация и дообавление задачи в очередь
+        // Дедупликация и добавление задачи в очередь
         const duplicate: boolean = this.isDublicate(task.key)
-        if (!duplicate) this.queue.push(task)
+        if (
+            !duplicate // Дедупликация
+            && !this.isShuttingDown // мягкое завершение: новые задачи не принимать.
+        ) this.queue.push(task)
 
         // Тут же убираем задачу из очереди по FIFO
         // и добавляем в список исполняемых задач, исполняем её
         if (this.executionList.length < this.maxParallels && !duplicate) { // лимит параллельности
             this.addToExecutionList(task) 
             this.remove()
-
             this.emit('run', task.key)
         }
     }

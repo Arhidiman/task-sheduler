@@ -1,12 +1,13 @@
 import EventEmitter from "node:events";
-import type { Mode, Events, Result, Task, TaskKey, ExecutorId } from "./types";
+import type { Mode, Events, Result, Task, TaskKey, ExecutorId } from "../types";
 
-export interface IExecutorsRegistrator<M extends Mode> {
+export interface ITasksBroker<M extends Mode> {
     tasksSubscribers: Record<TaskKey, ExecutorId[]>
     mode?: M
 }
 
-export class ExecutorsRegistrator extends EventEmitter<Events> implements IExecutorsRegistrator<Mode> {
+// доставщик результатов исполнителям
+export class TasksBroker extends EventEmitter<Events> implements ITasksBroker<Mode> {
 
     tasksSubscribers: Record<TaskKey, ExecutorId[]> = {}
     mode?: Mode
