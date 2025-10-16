@@ -53,4 +53,4 @@ const deduplication = async (taskCount: number, delayPerTask: number): Promise<T
     }
 }
 
-// export const test: TestFunc = () => deduplication(10, 500)
+export const test: TestFunc = () => deduplication(10, 200)

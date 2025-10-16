@@ -56,10 +56,12 @@ const runTests = async () => {
                 }
             }
         } catch (err: any) {
-            // console.log(
-            //     `${colors.bgRed}${colors.white} ⚠ ERROR ${colors.reset}  ${directory}\n` +
-            //     `${colors.red}    ${err.message}${colors.reset}\n`
-            // )
+            if (!err?.message.toLowerCase().includes('cannot find')) {
+                console.log(
+                    `${colors.bgRed}${colors.white} ERROR ${colors.reset}  ${directory}\n` +
+                    `${colors.red}    ${err.message}${colors.reset}\n`
+                )
+            }
         }
     }
 

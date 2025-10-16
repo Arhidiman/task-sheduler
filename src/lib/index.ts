@@ -10,20 +10,15 @@ export const delayedExec = (timeout: number, result?: any): Promise<void> => {
 export const generateMockTasks = (taskCount: number, delay: number, executeFunc: () => Promise<any>): Task[] => {
     let tasks: Task[] = []
     for (let i = 0; i < taskCount; i++) {
-
-
         const key = String(Math.round(Math.random()*taskCount)) 
         const task = {
             key,
             execute: async () => {
                 await delayedExec(delay)
-
-                // console.log(key)
                 return await executeFunc()
             },
             executorID: randomUUID()
         }
-
         tasks.push(task)
     }
     return tasks

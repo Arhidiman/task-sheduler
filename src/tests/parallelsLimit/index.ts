@@ -11,13 +11,8 @@ const parallelsLimit = async (maxParallels: number, taskCount: number, delay: nu
 
     const mockTasks = await generateMockTasks(taskCount, delay, async() => {
         results.push(scheduler.executionList.length)
-
-        console.log(scheduler.executionList, 'scheduler.executionList')
         return { message: 'parallels limit test' }
-    } )
-
-    console.log(mockTasks, 'mockTasks')
-    
+    } )    
 
     for (let task of mockTasks) {
         scheduler.add(task)
@@ -40,4 +35,4 @@ const parallelsLimit = async (maxParallels: number, taskCount: number, delay: nu
     }
 }
 
-// export const test: TestFunc = () => parallelsLimit(3, 10, 1000)
+export const test: TestFunc = () => parallelsLimit(3, 10, 200)

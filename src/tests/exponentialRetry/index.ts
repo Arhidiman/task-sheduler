@@ -42,4 +42,4 @@ const exponentialRetry = async (maxParallels: number, retries: number): Promise<
     }
 }
 
-// export const test: TestFunc = () => exponentialRetry(3, 5)
+export const test: TestFunc = () => exponentialRetry(3, 5)

@@ -1,8 +1,7 @@
 
 import { randomUUID } from "node:crypto"
-import { TaskSheduler, ITaskSheduler } from "../../queue"
-import { delayedExec, calculateMaxTotalDelay } from "../../lib"
-import { performance } from 'perf_hooks'
+import { TaskSheduler } from "../../queue"
+import { delayedExec } from "../../lib"
 import type { Test, TestFunc } from ".."
 import type { Task } from "../../types"
 
@@ -74,7 +73,7 @@ const gracefulShutdown = async (maxParallels: number, delay: number): Promise<Te
     }
 }
 
-export const test: TestFunc = () => gracefulShutdown(3, 500)
+export const test: TestFunc = () => gracefulShutdown(3, 200)
 
 
 

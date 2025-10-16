@@ -1,6 +1,6 @@
-import { UUID } from 'node:crypto'
 import EventEmitter from 'node:events'
 import { TasksBroker } from './TasksBroker/TasksBroker'
+import { StatsCollector } from './StatsCollector/StatsCollector'
 import type { Task, Result, TaskKey, ExecutorId, Mode } from './types'
 
 
@@ -40,6 +40,7 @@ export class TaskSheduler extends EventEmitter<Events> implements ITaskSheduler<
     private isShuttingDown: boolean = false
 
     private tasksBroker: TasksBroker
+    private statsCollector: StatsCollector
 
     private maxParallels: number = 3
 
@@ -48,13 +49,19 @@ export class TaskSheduler extends EventEmitter<Events> implements ITaskSheduler<
         this.maxParallels = maxParallels
         this.mode = mode
         this.tasksBroker = new TasksBroker(this.mode)
+        this.statsCollector = new StatsCollector()
 
         if (retries) this.maxRetries = retries
 
-        this.on('run', (taskKey) => { this.execute(taskKey) })
-        this.on('executed', (result: Result) => { 
+        this.on('run', (taskKey) => {
+            this.execute(taskKey)
+            this.statsCollector.increment('running')
+        })
+        this.on('executed', (result: Result) => {
 
             this.tasksBroker.emit('result', result)
+
+            if ('error' in result) this.statsCollector.increment('executedWithError')
 
             // если в очереди есть задачи, то берём одну, по принципу FIFO
             // и добавляем в список исполняемых задач
@@ -75,6 +82,7 @@ export class TaskSheduler extends EventEmitter<Events> implements ITaskSheduler<
     }
 
     shutdown(): void {
+        this.queue.forEach(() => this.statsCollector.increment('cancelled'))
         this.isShuttingDown = true
         this.queue = [] // мягкое завершение: отмена ожидающих задач
     }
@@ -85,15 +93,21 @@ export class TaskSheduler extends EventEmitter<Events> implements ITaskSheduler<
 
         // Дедупликация и добавление задачи в очередь
         const duplicate: boolean = this.isDublicate(task.key)
+
+        if (duplicate) this.statsCollector.increment('deduplicated') // количество дедупликаций
+
         if (
             !duplicate // Дедупликация
             && !this.isShuttingDown // мягкое завершение: новые задачи не принимать.
-        ) this.queue.push(task)
+        ) {
+            this.queue.push(task)
+            this.statsCollector.increment('queued')
+        }
 
         // Тут же убираем задачу из очереди по FIFO
         // и добавляем в список исполняемых задач, исполняем её
         if (this.executionList.length < this.maxParallels && !duplicate) { // лимит параллельности
-            this.addToExecutionList(task) 
+            this.addToExecutionList(task)
             this.remove()
             this.emit('run', task.key)
         }
@@ -109,7 +123,7 @@ export class TaskSheduler extends EventEmitter<Events> implements ITaskSheduler<
             ?.execute
 
         const result = await this.getResult(executedFunction, taskKey)
-            
+
         // убираем выполненную задачу из списка выполняемых
         this.removeFromExecutionList(taskKey)
         this.emit('executed', result)
@@ -130,7 +144,7 @@ export class TaskSheduler extends EventEmitter<Events> implements ITaskSheduler<
     }
 
     private async getResult(
-        execFunction: Task['execute'] | undefined, 
+        execFunction: Task['execute'] | undefined,
         taskKey: string
     ): Promise<Result> {
 
@@ -149,14 +163,14 @@ export class TaskSheduler extends EventEmitter<Events> implements ITaskSheduler<
         for (let retries = 0; retries <= this.maxRetries; retries++) {
             try {
                 const data = await execFunction?.()
-                
+
                 return {
                     taskKey,
                     message: JSON.stringify(data),
                     retries
                 }
-    
-            } catch(err: any) {            
+
+            } catch (err: any) {
                 result = {
                     taskKey,
                     message: executionErrMessage,
@@ -164,17 +178,26 @@ export class TaskSheduler extends EventEmitter<Events> implements ITaskSheduler<
                     retries
                 }
 
+
+                // количество задач, которые были перезапущены хотя бы раз
+                retries === 0 && this.statsCollector.increment('retried')
+
                 // экспоненциальная задержка с разбросом
-                const exp = 2
-                const baseDelay = this.baseRetryDelay * Math.pow(exp, retries)
-                const jitter = Math.floor(Math.random() * baseDelay)
-                const delay = baseDelay + jitter
-                    
+                const delay = this.getExpDelay(retries)
+
                 // ожидание перед следующим повтором
                 await new Promise(resolve => setTimeout(resolve, delay))
             }
-        }        
+        }
         return result!
+    }
+
+    private getExpDelay(retries: number): number {
+        const exp = 2
+        const baseDelay = this.baseRetryDelay * Math.pow(exp, retries)
+        const jitter = Math.floor(Math.random() * baseDelay)
+        const delay = baseDelay + jitter
+        return delay
     }
 }
 
